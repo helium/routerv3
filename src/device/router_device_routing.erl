@@ -167,10 +167,12 @@ handle_packet(SCPacket, PacketTime, Pid) when is_pid(Pid) ->
     Chain = get_chain(),
     case packet(Packet, PacketTime, HoldTime, PubKeyBin, Region, Pid, Chain) of
         {error, Reason} = E ->
+            lager:info("failed to handle packet for caller ~p ~p : ~p", [Pid, Packet, Reason]),
             ok = print_handle_packet_resp(SCPacket, Pid, reason_to_single_atom(Reason)),
             ok = handle_packet_metrics(Packet, reason_to_single_atom(Reason), Start),
             E;
         ok ->
+            lager:info("successfully handled packet for caller ~p", [Pid]),
             ok = print_handle_packet_resp(SCPacket, Pid, ok),
             ok = router_metrics:routing_packet_observe_start(
                 blockchain_helium_packet_v1:packet_hash(Packet),
@@ -197,6 +199,7 @@ handle_packet(Packet, PacketTime, PubKeyBin, Region) ->
             ok = handle_packet_metrics(Packet, reason_to_single_atom(Reason), Start),
             E;
         ok ->
+            lager:info("successfully handled packet ~p", [Packet]),
             ok = router_metrics:routing_packet_observe_start(
                 blockchain_helium_packet_v1:packet_hash(Packet),
                 PubKeyBin,
@@ -732,14 +735,17 @@ packet(
     Pid,
     Chain
 ) when MType == ?JOIN_REQ ->
-    lager:info("*** handling packet for caller ~p", [Pid]),
+    lager:info("*** handling join req packet for caller ~p", [Pid]),
     {AppEUI, DevEUI} = {lorawan_utils:reverse(AppEUI0), lorawan_utils:reverse(DevEUI0)},
     AName = blockchain_utils:addr2name(PubKeyBin),
     Msg = binary:part(Payload, {0, erlang:byte_size(Payload) - 4}),
     case get_device(DevEUI, AppEUI, Msg, MIC, Chain) of
         {ok, APIDevice, AppKey} ->
             DeviceID = router_device:id(APIDevice),
-            lager:info("*** handling packet for caller ~p and device_id ~p", [Pid, DeviceID]),
+            lager:info("*** handling join req packet for caller ~p and device_id ~p", [
+                Pid,
+                DeviceID
+            ]),
             case maybe_start_worker(DeviceID) of
                 {error, _Reason} = Error ->
                     Error;
@@ -794,6 +800,7 @@ packet(
     Pid,
     Chain
 ) ->
+    lager:info("*** handling packet for caller ~p", [Pid]),
     MIC = binary:part(PayloadAndMIC, {erlang:byte_size(PayloadAndMIC), -4}),
     DevAddrPrefix = application:get_env(blockchain, devaddr_prefix, $H),
     case DevAddr of
