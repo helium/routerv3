@@ -28,7 +28,10 @@ wait_for_response(Ctx) ->
     receive
         {send_response, Resp} ->
             lager:info("received response msg ~p", [Resp]),
-            {ok, #blockchain_state_channel_message_v1_pb{msg = {response, Resp}}, Ctx}
+            {ok, #blockchain_state_channel_message_v1_pb{msg = {response, Resp}}, Ctx};
+        {packet, Packet} ->
+            lager:info("received packet ~p", [Packet]),
+            {ok, #blockchain_state_channel_message_v1_pb{msg = {packet, Packet}}, Ctx}
     after ?TIMEOUT ->
         lager:info("failed to receive response msg after ~p seconds", [?TIMEOUT]),
         {grpc_error, {grpcbox_stream:code_to_status(2), <<"no response">>}}
