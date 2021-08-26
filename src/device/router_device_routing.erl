@@ -732,16 +732,22 @@ packet(
     Pid,
     Chain
 ) when MType == ?JOIN_REQ ->
+    lager:info("*** handling packet for caller ~p", [Pid]),
     {AppEUI, DevEUI} = {lorawan_utils:reverse(AppEUI0), lorawan_utils:reverse(DevEUI0)},
     AName = blockchain_utils:addr2name(PubKeyBin),
     Msg = binary:part(Payload, {0, erlang:byte_size(Payload) - 4}),
     case get_device(DevEUI, AppEUI, Msg, MIC, Chain) of
         {ok, APIDevice, AppKey} ->
             DeviceID = router_device:id(APIDevice),
+            lager:info("*** handling packet for caller ~p and device_id ~p", [Pid, DeviceID]),
             case maybe_start_worker(DeviceID) of
                 {error, _Reason} = Error ->
                     Error;
                 {ok, WorkerPid} ->
+                    lager:info(
+                        "*** started device worker with pid ~p for caller ~p and device_id ~p",
+                        [WorkerPid, Pid, DeviceID]
+                    ),
                     router_device_worker:handle_join(
                         WorkerPid,
                         Packet,
