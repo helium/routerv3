@@ -1221,6 +1221,7 @@ handle_join(
     DevAddr =
         case router_device_devaddr:allocate(Device0, PubKeyBin) of
             {ok, D} ->
+                lager:info("*** allocated DevAddr ~p", [D]),
                 D;
             {error, _Reason} ->
                 lager:warning("failed to allocate devaddr for ~p: ~p", [
