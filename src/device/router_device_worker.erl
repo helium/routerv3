@@ -470,6 +470,7 @@ handle_cast(
         last_dev_nonce = LastDevNonce
     } = State
 ) ->
+    lager:info("*** handling join for caller ~p", [Pid]),
     PHash = blockchain_helium_packet_v1:packet_hash(Packet0),
     lager:debug("got join packet (~p) ~p", [PHash, lager:pr(Packet0, blockchain_helium_packet_v1)]),
     %% TODO we should really just call this once per join nonce
@@ -488,15 +489,18 @@ handle_cast(
         )
     of
         {error, _Reason} ->
+            lager:info("*** failed to validate join for caller ~p", [Pid]),
             lager:debug("failed to validate join ~p", [_Reason]),
             {noreply, State};
         {ok, Device1, DevNonce, JoinAcceptArgs, BalanceNonce} ->
             NewRSSI = blockchain_helium_packet_v1:signal_strength(Packet0),
             case maps:get(DevNonce, Cache0, undefined) of
                 undefined when LastDevNonce == DevNonce ->
+                    lager:info("*** Got a late join for caller ~p", [Pid]),
                     lager:debug("got a late join: ~p", [DevNonce]),
                     {noreply, State};
                 undefined ->
+                    lager:info("*** Got a first join for caller ~p", [Pid]),
                     lager:debug("got a first join: ~p", [DevNonce]),
                     JoinCache = #join_cache{
                         uuid = router_utils:uuid_v4(),
@@ -558,7 +562,8 @@ handle_cast(
                                 DevNonce,
                                 {NewRSSI, OldRSSI}
                             ]),
-                            catch blockchain_state_channel_handler:send_response(
+                            lager:info("*** sending join response true to caller ~p ", [Pid]),
+                            catch blockchain_state_channel_common:send_response(
                                 Pid,
                                 blockchain_state_channel_response_v1:new(true)
                             ),
@@ -585,7 +590,8 @@ handle_cast(
                                 DevNonce,
                                 {NewRSSI, OldRSSI}
                             ]),
-                            catch blockchain_state_channel_handler:send_response(
+                            lager:info("*** sending join response true to caller ~p ", [Pid]),
+                            catch blockchain_state_channel_common:send_response(
                                 OldPid,
                                 blockchain_state_channel_response_v1:new(true)
                             ),
@@ -806,7 +812,8 @@ handle_cast(
                         end,
                         case RSSI0 > OldRSSI of
                             false ->
-                                catch blockchain_state_channel_handler:send_response(
+                                lager:info("*** sending join response true to caller ~p ", [Pid]),
+                                catch blockchain_state_channel_common:send_response(
                                     Pid,
                                     blockchain_state_channel_response_v1:new(true)
                                 ),
@@ -829,7 +836,8 @@ handle_cast(
                                     )
                                 }};
                             true ->
-                                catch blockchain_state_channel_handler:send_response(
+                                lager:info("*** sending join response true to caller ~p ", [Pid]),
+                                catch blockchain_state_channel_common:send_response(
                                     OldPid,
                                     blockchain_state_channel_response_v1:new(true)
                                 ),
@@ -913,7 +921,8 @@ handle_info(
         Rx2
     ),
     lager:debug("sending join response ~p", [DownlinkPacket]),
-    catch blockchain_state_channel_handler:send_response(
+    lager:info("*** sending join response true to caller ~p with downlink ~p", [Pid, DownlinkPacket]),
+    catch blockchain_state_channel_common:send_response(
         Pid,
         blockchain_state_channel_response_v1:new(true, DownlinkPacket)
     ),
@@ -985,7 +994,8 @@ handle_info(
         {ok, Device1} ->
             ok = save_and_update(DB, CF, ChannelsWorker, Device1),
             lager:debug("sending frame response with no downlink"),
-            catch blockchain_state_channel_handler:send_response(
+            lager:info("*** sending join response true to caller ~p with NO downlink", [Pid]),
+            catch blockchain_state_channel_common:send_response(
                 Pid,
                 blockchain_state_channel_response_v1:new(true)
             ),
@@ -1030,7 +1040,11 @@ handle_info(
             end,
             ok = save_and_update(DB, CF, ChannelsWorker, Device1),
             lager:debug("sending downlink for fcnt: ~p, ~p", [FCnt, DownlinkPacket]),
-            catch blockchain_state_channel_handler:send_response(
+            lager:info("*** sending join response true to caller ~p with downlink", [
+                Pid,
+                DownlinkPacket
+            ]),
+            catch blockchain_state_channel_common:send_response(
                 Pid,
                 blockchain_state_channel_response_v1:new(true, DownlinkPacket)
             ),
@@ -1051,7 +1065,8 @@ handle_info(
                 fcnt = FCnt
             }};
         noop ->
-            catch blockchain_state_channel_handler:send_response(
+            lager:info("*** sending join response true to caller ~p", [Pid]),
+            catch blockchain_state_channel_common:send_response(
                 Pid,
                 blockchain_state_channel_response_v1:new(true)
             ),
@@ -1206,6 +1221,7 @@ handle_join(
     DevAddr =
         case router_device_devaddr:allocate(Device0, PubKeyBin) of
             {ok, D} ->
+                lager:info("*** allocated DevAddr ~p", [D]),
                 D;
             {error, _Reason} ->
                 lager:warning("failed to allocate devaddr for ~p: ~p", [
